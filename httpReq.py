@@ -30,10 +30,12 @@ def parse_docker_stats(output):
         container_stats["CONTAINER ID"] = values[0]
         container_stats["NAME"] = values[1]
         container_stats["CPU %"] = values[2]
-        container_stats["MEM USAGE / LIMIT"] = parse_memory_usage(values[3]+values[4]+values[5])
-        container_stats["MEM %"] = values[6]
-        container_stats["NET I/O"] = values[7]+values[8]+values[9]
-        container_stats["BLOCK I/O"] = values[10]+values[11]+values[12]
+        container_stats["MEM USAGE"] = parse_memory_usage(values[3])
+        container_stats["MEM SIZE"] = values[5]
+        container_stats["NET INPUT"] = values[7]
+        container_stats["NET OUTPUT"] = values[9]
+        container_stats["BLOCK INPUT"] = values[10]
+        container_stats["BLOCK OUTPUT"] = values[12]
         container_stats["PIDS"] = str(values[13])
         stats.append(container_stats)
     return stats
