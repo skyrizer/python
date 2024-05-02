@@ -12,7 +12,7 @@ def get_node_id_from_database(hostname):
         host="127.0.0.1",
         user="root",
         password="Wafir@020304",
-        database="microsafe"
+        database="containsafe"
     )
 
     # Create a cursor object
