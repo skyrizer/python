@@ -2,10 +2,26 @@ import asyncio
 import websockets
 import socket
 
+connected_clients = set()
+
 async def echo(websocket, path):
-    async for message in websocket:
-        print(f"Received message: {message}")
-        await websocket.send(f"Echo: {message}")
+    # Register client
+    connected_clients.add(websocket)
+    try:
+        async for message in websocket:
+            print(f"Received message: {message}")
+            # Check if the received message is "ping"
+            if message == "ping":
+                # Reply with "pong"
+                await websocket.send("pong")
+            else:
+                # Echo the message back to all connected clients
+                for client in connected_clients:
+                    if client != websocket:
+                        await client.send(message)
+    finally:
+        # Unregister client
+        connected_clients.remove(websocket)
 
 def get_ip():
     hostname = socket.gethostname()
