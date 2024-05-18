@@ -93,7 +93,7 @@ async def send_data():
             data = json.dumps({"performance": docker_stats})
             await websocket.send(data)
             print(f"Sent: {data}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)
 
 if __name__ == "__main__":
     docker_stats = []
