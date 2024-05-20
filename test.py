@@ -10,6 +10,9 @@ import socket
 
 # Global variable to store sleep duration
 sleep_duration = 10
+docker_stats = []
+
+connected_clients = set()
 
 # Function to parse memory usage
 def parse_memory_usage(memory_string):
@@ -87,33 +90,46 @@ def get_ip():
     ip_address = socket.gethostbyname(hostname)
     return ip_address
 
-# Function to send data to WebSocket server
-async def send_data():
-    ip_address = get_ip()
-    uri = f"ws://{ip_address}:8080"  # Use the machine's IP address
-    async with websockets.connect(uri) as websocket:
-        while True:
-            data = json.dumps({"performance": docker_stats})
-            await websocket.send(data)
-            print(f"Sent: {data}")
-            await asyncio.sleep(sleep_duration)  # Use the shared sleep duration variable
-
-# WebSocket server to receive messages from Flutter and update sleep duration
-async def receive_data(websocket, path):
+# Function to handle WebSocket connections and messages
+async def handle_websocket(websocket, path):
     global sleep_duration
-    async for message in websocket:
-        print(f"Received: {message}")
-        try:
-            data = json.loads(message)
-            new_duration = int(data.get("sleep_duration", 10))
-            sleep_duration = new_duration
-            print(f"Updated sleep duration to: {sleep_duration}")
-        except ValueError as e:
-            print(f"Invalid message format: {e}")
+    connected_clients.add(websocket)
+    try:
+        async for message in websocket:
+            print(f"Received message: {message}")
+            try:
+                data = json.loads(message)
+                if "sleep_duration" in data:
+                    new_duration = int(data["sleep_duration"])
+                    sleep_duration = new_duration
+                    print(f"Updated sleep duration to: {sleep_duration}")
+                elif message == "ping":
+                    # Reply with "pong"
+                    await websocket.send("pong")
+                else:
+                    # Echo the message to other connected clients
+                    for client in connected_clients:
+                        if client != websocket:
+                            await client.send(message)
+            except ValueError as e:
+                print(f"Invalid message format: {e}")
+    finally:
+        connected_clients.remove(websocket)
+
+# Function to send docker stats to connected clients
+async def send_docker_stats():
+    while True:
+        if docker_stats:
+            data = json.dumps({"performance": docker_stats})
+            for client in connected_clients:
+                try:
+                    await client.send(data)
+                    print(f"Sent: {data}")
+                except websockets.exceptions.ConnectionClosed as e:
+                    print(f"Error sending data: {e}")
+        await asyncio.sleep(sleep_duration)  # Use the shared sleep duration variable
 
 if __name__ == "__main__":
-    docker_stats = []
-
     # Start threads for collecting docker stats and sending HTTP requests
     extract_thread = threading.Thread(target=extract_docker_stats)
     send_http_thread = threading.Thread(target=send_http_request)
@@ -121,10 +137,15 @@ if __name__ == "__main__":
     extract_thread.start()
     send_http_thread.start()
 
-    # Start asyncio loop for sending data to WebSocket server
-    asyncio.get_event_loop().run_until_complete(send_data())
+    # Start WebSocket server to listen for messages from Flutter and send docker stats
+    ip_address = get_ip()
+    port = 8765
 
-    # Start WebSocket server to listen for messages from Flutter
-    start_server = websockets.serve(receive_data, "192.168.0.115", 8765)  # Adjust port as needed
-    asyncio.get_event_loop().run_until_complete(start_server)
-    asyncio.get_event_loop().run_forever()
+    start_server = websockets.serve(handle_websocket, ip_address, port)
+
+    print(f"Starting WebSocket server on {ip_address}:{port}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_server)
+    loop.create_task(send_docker_stats())
+    loop.run_forever()
