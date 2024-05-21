@@ -16,7 +16,7 @@ docker_stats = []
 connected_clients = set()
 
 # Define limit parameters
-disk_limit = 80.0  # Disk usage limit in percentage
+block_limit = 80.0  # Block usage limit in percentage
 network_limit = 1000.0  # Network usage limit in MB
 cpu_limit = 80.0  # CPU usage limit in percentage
 memory_limit = 80.0  # Memory usage limit in percentage
@@ -34,6 +34,35 @@ def parse_memory_usage(memory_string):
         }
     else:
         return memory_string
+    
+  # Function to check limits and alert
+def check_limits(container_stats):
+    alerts = []
+    # Check CPU limit
+    cpu_usage = float(container_stats["CPU %"].rstrip('%'))
+    if cpu_usage > cpu_limit:
+        alerts.append(f"CPU usage for {container_stats['NAME']} exceeds limit: {cpu_usage}% > {cpu_limit}%")
+    
+    # Check memory limit
+    memory_usage = float(container_stats["MEM USAGE"]["size"])
+    memory_limit_value = float(container_stats["MEM USAGE"]["limit_size"])
+    memory_usage_percent = (memory_usage / memory_limit_value) * 100
+    if memory_usage_percent > memory_limit:
+        alerts.append(f"Memory usage for {container_stats['NAME']} exceeds limit: {memory_usage_percent}% > {memory_limit}%")
+    
+    # Check network limit
+    net_input = float(container_stats["NET INPUT"].rstrip('B'))
+    net_output = float(container_stats["NET OUTPUT"].rstrip('B'))
+    if net_input > network_limit or net_output > network_limit:
+        alerts.append(f"Network usage for {container_stats['NAME']} exceeds limit: {net_input}MB or {net_output}MB > {network_limit}MB")
+    
+    # Check block (disk) limit
+    block_input = float(container_stats["BLOCK INPUT"].rstrip('B'))
+    block_output = float(container_stats["BLOCK OUTPUT"].rstrip('B'))
+    if block_input > block_limit or block_output > block_limit:
+        alerts.append(f"Block usage for {container_stats['NAME']} exceeds limit: {block_input}MB or {block_output}MB > {block_limit}MB")
+
+    return alerts
 
 # Function to parse docker stats
 def parse_docker_stats(output):
