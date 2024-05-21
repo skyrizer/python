@@ -10,9 +10,16 @@ import socket
 
 # Global variable to store sleep duration
 sleep_duration = 10
+email = ""
 docker_stats = []
 
 connected_clients = set()
+
+# Define limit parameters
+disk_limit = 80.0  # Disk usage limit in percentage
+network_limit = 1000.0  # Network usage limit in MB
+cpu_limit = 80.0  # CPU usage limit in percentage
+memory_limit = 80.0  # Memory usage limit in percentage
 
 # Function to parse memory usage
 def parse_memory_usage(memory_string):
@@ -93,26 +100,41 @@ def get_ip():
 # Function to handle WebSocket connections and messages
 async def handle_websocket(websocket, path):
     global sleep_duration
+    global email
     connected_clients.add(websocket)
     try:
         async for message in websocket:
-            print(f"Received message: {message}")
-            try:
-                data = json.loads(message)
-                if "sleep_duration" in data:
-                    new_duration = int(data["sleep_duration"])
-                    sleep_duration = new_duration
-                    print(f"Updated sleep duration to: {sleep_duration}")
-                elif message == "ping":
-                    # Reply with "pong"
-                    await websocket.send("pong")
-                else:
-                    # Echo the message to other connected clients
-                    for client in connected_clients:
-                        if client != websocket:
-                            await client.send(message)
-            except ValueError as e:
-                print(f"Invalid message format: {e}")
+            #print(f"Received message: {message}")
+            if message == "ping":
+                # Reply with "pong"
+                await websocket.send("pong")
+            else:
+                try:
+                    data = json.loads(message)
+                    print(data)
+                    if "sleep_duration" in data:
+                        new_duration = int(data["sleep_duration"])
+                        sleep_duration = new_duration
+                        print(email)
+                        print(f"Updated sleep duration to: {sleep_duration}")
+                    elif "email" in data:
+                        new_email = data["email"]
+                        email = new_email
+                        print(f"Updated email as: {email}")
+
+                    else:
+                        # Echo the message to other connected clients
+                        for client in connected_clients.copy():
+                            if client != websocket:
+                                await client.send(message)
+                except ValueError as e:
+                    print(f"Invalid message format: {e}")
+    except websockets.exceptions.ConnectionClosedError as e:
+        print(f"Connection closed with error: {e}")
+    except websockets.exceptions.ConnectionClosedOK:
+        print(f"Connection closed normally.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
     finally:
         connected_clients.remove(websocket)
 
@@ -121,7 +143,7 @@ async def send_docker_stats():
     while True:
         if docker_stats:
             data = json.dumps({"performance": docker_stats})
-            for client in connected_clients:
+            for client in connected_clients.copy():
                 try:
                     await client.send(data)
                     print(f"Sent: {data}")
@@ -147,5 +169,5 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(start_server)
-    loop.create_task(send_docker_stats())
+    loop.create_task(send_docker_stats())  # Ensure this line is uncommented and corrected
     loop.run_forever()
