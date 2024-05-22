@@ -7,6 +7,7 @@ import threading
 import asyncio
 import websockets
 import socket
+import psutil
 
 # Global variable to store sleep duration
 sleep_duration = 10
@@ -33,25 +34,17 @@ def get_ip():
 
 # Function to parse memory usage
 def parse_memory_usage(memory_string):
-    match = re.match(r'([\d.]+)([KMGTPEZY]iB) / ([\d.]+)([KMGTPEZY]iB)', memory_string)
+    match = re.match(r'([\d.]+)([KMGTPEZY])iB / ([\d.]+)([KMGTPEZY])iB', memory_string)
     if match:
         size, unit, limit_size, limit_unit = match.groups()
-        size = float(size)
-        limit_size = float(limit_size)
-        # Convert both sizes to the same unit (bytes) for comparison
-        unit_multipliers = {
-            'KiB': 2**10, 'MiB': 2**20, 'GiB': 2**30, 'TiB': 2**40,
-            'PiB': 2**50, 'EiB': 2**60, 'ZiB': 2**70, 'YiB': 2**80
-        }
-        size_bytes = size * unit_multipliers[unit]
-        limit_bytes = limit_size * unit_multipliers[limit_unit]
         return {
-            "size_bytes": size_bytes,
-            "limit_bytes": limit_bytes
+            "size": str(size),
+            "unit": str(unit),
+            "limit_size": str(limit_size) if limit_size != 'GiB' else limit_size,
+            "limit_unit": str(limit_unit)
         }
     else:
-        return {"size_bytes": 0, "limit_bytes": 1}  # Fallback to avoid division by zero
-
+        return memory_string
 
 def fetch_container_limits():
     global containers_limits
@@ -210,7 +203,10 @@ async def handle_websocket(websocket, path):
 async def send_docker_stats():
     while True:
         if docker_stats:
-            data = json.dumps({"performance": docker_stats})
+            data = json.dumps({
+                "performance": docker_stats,
+                "service_status": get_service_status()
+                })
             for client in connected_clients.copy():
                 try:
                     await client.send(data)
@@ -218,6 +214,29 @@ async def send_docker_stats():
                 except websockets.exceptions.ConnectionClosed as e:
                     print(f"Error sending data: {e}")
         await asyncio.sleep(sleep_duration)  # Use the shared sleep duration variable
+
+# Function to check if Apache, MySQL, and Tomcat are running
+def get_service_status():
+    services = {
+        'apache': False,
+        'mysql': False,
+        'tomcat': False
+    }
+    
+    # List of common process names for each service
+    service_process_names = {
+        'apache': ['apache2', 'httpd'],
+        'mysql': ['mysqld'],
+        'tomcat': ['tomcat']
+    }
+
+    # Iterate through all running processes
+    for process in psutil.process_iter(['name']):
+        for service, process_names in service_process_names.items():
+            if process.info['name'] in process_names:
+                services[service] = True
+
+    return services
 
 if __name__ == "__main__":
     # Start threads for collecting docker stats and sending HTTP requests
