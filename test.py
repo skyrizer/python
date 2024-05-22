@@ -15,52 +15,95 @@ docker_stats = []
 
 connected_clients = set()
 
+# Global variable to store container limits from API
+containers_limits = []
+
 # Define limit parameters
 block_limit = 80.0  # Block usage limit in percentage
 network_limit = 1000.0  # Network usage limit in MB
 cpu_limit = 80.0  # CPU usage limit in percentage
 memory_limit = 80.0  # Memory usage limit in percentage
 
+
+# Function to get the machine's IP address
+def get_ip():
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    return ip_address
+
 # Function to parse memory usage
 def parse_memory_usage(memory_string):
-    match = re.match(r'([\d.]+)([KMGTPEZY])iB / ([\d.]+)([KMGTPEZY])iB', memory_string)
+    match = re.match(r'([\d.]+)([KMGTPEZY]iB) / ([\d.]+)([KMGTPEZY]iB)', memory_string)
     if match:
         size, unit, limit_size, limit_unit = match.groups()
+        size = float(size)
+        limit_size = float(limit_size)
+        # Convert both sizes to the same unit (bytes) for comparison
+        unit_multipliers = {
+            'KiB': 2**10, 'MiB': 2**20, 'GiB': 2**30, 'TiB': 2**40,
+            'PiB': 2**50, 'EiB': 2**60, 'ZiB': 2**70, 'YiB': 2**80
+        }
+        size_bytes = size * unit_multipliers[unit]
+        limit_bytes = limit_size * unit_multipliers[limit_unit]
         return {
-            "size": str(size),
-            "unit": str(unit),
-            "limit_size": str(limit_size) if limit_size != 'GiB' else limit_size,
-            "limit_unit": str(limit_unit)
+            "size_bytes": size_bytes,
+            "limit_bytes": limit_bytes
         }
     else:
-        return memory_string
-    
-  # Function to check limits and alert
+        return {"size_bytes": 0, "limit_bytes": 1}  # Fallback to avoid division by zero
+
+
+def fetch_container_limits():
+    global containers_limits
+    ip_address = get_ip()
+    url = "http://192.168.0.115:8000/getAgentContainers"  # Replace with your actual API endpoint
+    try:
+        payload = {"ip_address": ip_address}
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 200:
+            containers_limits = response.json()
+            print("Fetched container limits successfully")
+        else:
+            print("Failed to fetch container limits, status code:", response.status_code)
+    except requests.RequestException as e:
+        print("An error occurred while fetching container limits:", str(e))
+
+# Call fetch_container_limits initially and set it to refresh periodically
+fetch_container_limits()
+threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
+
 def check_limits(container_stats):
     alerts = []
+    container_id = container_stats["CONTAINER ID"]
+    container = next((c for c in containers_limits if c['id'] == container_id), None)
+
+    if not container:
+        return alerts  # No matching container found
+
     # Check CPU limit
     cpu_usage = float(container_stats["CPU %"].rstrip('%'))
-    if cpu_usage > cpu_limit:
-        alerts.append(f"CPU usage for {container_stats['NAME']} exceeds limit: {cpu_usage}% > {cpu_limit}%")
+    if cpu_usage > container['cpu_limit']:
+        alerts.append(f"CPU usage for {container_stats['NAME']} exceeds limit: {cpu_usage}% > {container['cpu_limit']}%")
     
     # Check memory limit
-    memory_usage = float(container_stats["MEM USAGE"]["size"])
-    memory_limit_value = float(container_stats["MEM USAGE"]["limit_size"])
+    memory_usage = float(container_stats["MEM USAGE"]["size_bytes"])
+    memory_limit_value = float(container_stats["MEM USAGE"]["limit_bytes"])
     memory_usage_percent = (memory_usage / memory_limit_value) * 100
-    if memory_usage_percent > memory_limit:
-        alerts.append(f"Memory usage for {container_stats['NAME']} exceeds limit: {memory_usage_percent}% > {memory_limit}%")
+    if memory_usage_percent > container['mem_limit']:
+        alerts.append(f"Memory usage for {container_stats['NAME']} exceeds limit: {memory_usage_percent}% > {container['mem_limit']}%")
     
     # Check network limit
     net_input = float(container_stats["NET INPUT"].rstrip('B'))
     net_output = float(container_stats["NET OUTPUT"].rstrip('B'))
-    if net_input > network_limit or net_output > network_limit:
-        alerts.append(f"Network usage for {container_stats['NAME']} exceeds limit: {net_input}MB or {net_output}MB > {network_limit}MB")
+    if net_input > container['net_limit'] * (1024 ** 2) or net_output > container['net_limit'] * (1024 ** 2):
+        alerts.append(f"Network usage for {container_stats['NAME']} exceeds limit: {net_input}MB or {net_output}MB > {container['net_limit']}MB")
     
     # Check block (disk) limit
     block_input = float(container_stats["BLOCK INPUT"].rstrip('B'))
     block_output = float(container_stats["BLOCK OUTPUT"].rstrip('B'))
-    if block_input > block_limit or block_output > block_limit:
-        alerts.append(f"Block usage for {container_stats['NAME']} exceeds limit: {block_input}MB or {block_output}MB > {block_limit}MB")
+    if block_input > container['disk_limit'] * (1024 ** 2) or block_output > container['disk_limit'] * (1024 ** 2):
+        alerts.append(f"Block usage for {container_stats['NAME']} exceeds limit: {block_input}MB or {block_output}MB > {container['disk_limit']}MB")
 
     return alerts
 
@@ -120,11 +163,7 @@ def send_http_request():
 
         time.sleep(15)
 
-# Function to get the machine's IP address
-def get_ip():
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
-    return ip_address
+
 
 # Function to handle WebSocket connections and messages
 async def handle_websocket(websocket, path):
@@ -187,6 +226,10 @@ if __name__ == "__main__":
     
     extract_thread.start()
     send_http_thread.start()
+
+ # Fetch container limits initially and set to refresh periodically
+    fetch_container_limits()
+    threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
 
     # Start WebSocket server to listen for messages from Flutter and send docker stats
     ip_address = get_ip()
