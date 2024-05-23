@@ -220,21 +220,30 @@ def get_service_status():
     services = {
         'apache': False,
         'mysql': False,
-        'tomcat': False
-    }
-    
-    # List of common process names for each service
-    service_process_names = {
-        'apache': ['apache2', 'httpd'],
-        'mysql': ['mysqld'],
-        'tomcat': ['tomcat']
+        'tomcat': False,
+        'docker': False
     }
 
+    # List of common process names for each service
+    service_process_names = {
+        'apache': ['apache2', 'httpd.exe'],
+        'mysql': ['mysqld.exe', 'MySQLWorkbench.exe'],
+        'tomcat': ['tomcat'],
+        'docker': ['Docker Desktop.exe', 'docker.exe']
+    }
+
+    print("Debugging information:")  # Debugging line
     # Iterate through all running processes
     for process in psutil.process_iter(['name']):
-        for service, process_names in service_process_names.items():
-            if process.info['name'] in process_names:
-                services[service] = True
+        try:
+            process_name = process.info['name']
+          #  print(f"Process found: {process_name}")  # Debugging line
+            for service, process_names in service_process_names.items():
+                if any(process_name.lower() == name.lower() for name in process_names):
+                    services[service] = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
+            print(f"Error accessing process information: {e}")  # Debugging line
+
 
     return services
 
