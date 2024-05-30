@@ -18,6 +18,7 @@ connected_clients = set()
 
 # Global variable to store container limits from API
 containers_limits = []
+node_services = []
 
 # Define limit parameters
 block_limit = 80.0  # Block usage limit in percentage
@@ -65,6 +66,27 @@ def fetch_container_limits():
 # Call fetch_container_limits initially and set it to refresh periodically
 fetch_container_limits()
 threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
+
+# fetch services for node
+def fetch_node_services():
+    global node_services
+    ip_address = get_ip()
+    url = "http://192.168.0.115:8000/getServiceByNode"  # Replace with your actual API endpoint
+    try:
+        payload = {"ip_address": ip_address}
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 200:
+            node_services = response.json()
+            print("Fetched node services successfully")
+        else:
+            print("Failed to fetch node services, status code:", response.status_code)
+    except requests.RequestException as e:
+        print("An error occurred while fetching node services:", str(e))
+
+# Call fetch_node_services initially and set it to refresh periodically
+fetch_node_services()
+threading.Timer(300, fetch_node_services).start()  # Refresh every 5 minutes
 
 def check_limits(container_stats):
     alerts = []
@@ -157,6 +179,31 @@ def send_http_request():
         time.sleep(15)
 
 
+def alert_notification(message):
+    url = "https://onesignal.com/api/v1/notifications"
+    while True:
+        try:
+            payload = {
+                "app_id": "2c9ce8b1-a075-4864-83a3-009c8497310e",
+                "include_external_user_ids": [email],
+                "contents": {
+                    "en": message
+                }
+                }
+            headers = {"Content-Type": "application/json"}
+            response = requests.post(url, json=payload, headers=headers)
+            if response.status_code == 200:
+                print("HTTP request sent successfully")
+            else:
+                print("HTTP request failed with status code:", response.status_code)
+        except requests.RequestException as e:
+            print("An error occurred while sending HTTP request:", str(e))
+        except Exception as e:
+            print("An unexpected error occurred:", str(e))
+
+        time.sleep(15)
+
+
 
 # Function to handle WebSocket connections and messages
 async def handle_websocket(websocket, path):
@@ -226,10 +273,10 @@ def get_service_status():
 
     # List of common process names for each service
     service_process_names = {
-        'apache': ['apache2', 'httpd.exe'],
-        'mysql': ['mysqld.exe', 'MySQLWorkbench.exe'],
-        'tomcat': ['tomcat'],
-        'docker': ['Docker Desktop.exe', 'docker.exe']
+        'apache': ['apache2', 'httpd.exe', 'httpd'],
+        'mysql': ['mysqld.exe', 'MySQLWorkbench.exe', 'mysqld'],
+        'tomcat': ['tomcat.exe', 'tomcat'],
+        'docker': ['Docker Desktop.exe', 'docker.exe', 'docker']
     }
 
     print("Debugging information:")  # Debugging line
@@ -255,9 +302,13 @@ if __name__ == "__main__":
     extract_thread.start()
     send_http_thread.start()
 
- # Fetch container limits initially and set to refresh periodically
+    # Fetch container limits initially and set to refresh periodically
     fetch_container_limits()
     threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
+
+     # Fetch container limits initially and set to refresh periodically
+    fetch_node_services()
+    threading.Timer(300, fetch_node_services).start()  # Refresh every 5 minutes
 
     # Start WebSocket server to listen for messages from Flutter and send docker stats
     ip_address = get_ip()
