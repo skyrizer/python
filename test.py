@@ -26,7 +26,6 @@ network_limit = 1000.0  # Network usage limit in MB
 cpu_limit = 80.0  # CPU usage limit in percentage
 memory_limit = 80.0  # Memory usage limit in percentage
 
-
 # Function to get the machine's IP address
 def get_ip():
     hostname = socket.gethostname()
@@ -71,13 +70,13 @@ threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
 def fetch_node_services():
     global node_services
     ip_address = get_ip()
-    url = "http://192.168.0.115:8000/getServiceByNode"  # Replace with your actual API endpoint
+    url = "http://192.168.0.115:8000/getServicesByNode"  # Replace with your actual API endpoint
     try:
         payload = {"ip_address": ip_address}
         headers = {"Content-Type": "application/json"}
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.get(url, json=payload, headers=headers)
         if response.status_code == 200:
-            node_services = response.json()
+            node_services = response.json().get('nodeServices', [])
             print("Fetched node services successfully")
         else:
             print("Failed to fetch node services, status code:", response.status_code)
@@ -204,7 +203,6 @@ def alert_notification(message):
         time.sleep(15)
 
 
-
 # Function to handle WebSocket connections and messages
 async def handle_websocket(websocket, path):
     global sleep_duration
@@ -212,7 +210,6 @@ async def handle_websocket(websocket, path):
     connected_clients.add(websocket)
     try:
         async for message in websocket:
-            #print(f"Received message: {message}")
             if message == "ping":
                 # Reply with "pong"
                 await websocket.send("pong")
@@ -262,37 +259,28 @@ async def send_docker_stats():
                     print(f"Error sending data: {e}")
         await asyncio.sleep(sleep_duration)  # Use the shared sleep duration variable
 
-# Function to check if Apache, MySQL, and Tomcat are running
+# Function to check if services are running based on background processes
 def get_service_status():
-    services = {
-        'apache': False,
-        'mysql': False,
-        'tomcat': False,
-        'docker': False
-    }
+    services_status = {}
+    
+    # Iterate through node_services to get background processes
+    for service in node_services:
+        service_name = service['name']
+        services_status[service_name] = False
+        
+        background_processes = [bp['name'].lower() for bp in service['background_processes']]
+        
+        # Iterate through all running processes
+        for process in psutil.process_iter(['name']):
+            try:
+                process_name = process.info['name'].lower()
+                if process_name in background_processes:
+                    services_status[service_name] = True
+                    break
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
 
-    # List of common process names for each service
-    service_process_names = {
-        'apache': ['apache2', 'httpd.exe', 'httpd'],
-        'mysql': ['mysqld.exe', 'MySQLWorkbench.exe', 'mysqld'],
-        'tomcat': ['tomcat.exe', 'tomcat'],
-        'docker': ['Docker Desktop.exe', 'docker.exe', 'docker']
-    }
-
-    print("Debugging information:")  # Debugging line
-    # Iterate through all running processes
-    for process in psutil.process_iter(['name']):
-        try:
-            process_name = process.info['name']
-          #  print(f"Process found: {process_name}")  # Debugging line
-            for service, process_names in service_process_names.items():
-                if any(process_name.lower() == name.lower() for name in process_names):
-                    services[service] = True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
-            print(f"Error accessing process information: {e}")  # Debugging line
-
-
-    return services
+    return services_status
 
 if __name__ == "__main__":
     # Start threads for collecting docker stats and sending HTTP requests
@@ -306,7 +294,7 @@ if __name__ == "__main__":
     fetch_container_limits()
     threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
 
-     # Fetch container limits initially and set to refresh periodically
+    # Fetch node services initially and set to refresh periodically
     fetch_node_services()
     threading.Timer(300, fetch_node_services).start()  # Refresh every 5 minutes
 
