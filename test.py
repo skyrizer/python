@@ -169,6 +169,7 @@ def send_http_request():
             if response.status_code == 200:
                 print("HTTP request sent successfully")
             else:
+                print(docker_stats)
                 print("HTTP request failed with status code:", response.status_code)
         except requests.RequestException as e:
             print("An error occurred while sending HTTP request:", str(e))
@@ -261,24 +262,28 @@ async def send_docker_stats():
 
 # Function to check if services are running based on background processes
 def get_service_status():
-    services_status = {}
-    
+    services_status = []
+
     # Iterate through node_services to get background processes
     for service in node_services:
         service_name = service['name']
-        services_status[service_name] = False
-        
+        service_id = service['id']
+        is_running = False
+
         background_processes = [bp['name'].lower() for bp in service['background_processes']]
-        
+
         # Iterate through all running processes
         for process in psutil.process_iter(['name']):
             try:
                 process_name = process.info['name'].lower()
                 if process_name in background_processes:
-                    services_status[service_name] = True
+                    is_running = True
                     break
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
+
+        # Append service status to the list in the desired format
+        services_status.append({"id": service_id, "name": service_name, "value": is_running})
 
     return services_status
 

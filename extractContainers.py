@@ -36,7 +36,7 @@ def parse_docker_containers(output):
     containers = []
     lines = output.strip().split('\n')
     header = lines[0].split()
-    for line in lines[1:]:
+    for line in lines[0:]:
         values = line.split()
         container = {}
         container["CONTAINER ID"] = values[0]
