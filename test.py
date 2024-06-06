@@ -190,7 +190,10 @@ def alert_notification(message):
                     "en": message
                 }
                 }
-            headers = {"Content-Type": "application/json"}
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": "Basic MTI3ZjcwYjktNGJiMy00YWViLTljMmQtYjMwNDI5NzBkMjRk"
+                }
             response = requests.post(url, json=payload, headers=headers)
             if response.status_code == 200:
                 print("HTTP request sent successfully")
