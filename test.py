@@ -85,7 +85,7 @@ def fetch_node_services():
 
 # Call fetch_node_services initially and set it to refresh periodically
 fetch_node_services()
-threading.Timer(300, fetch_node_services).start()  # Refresh every 5 minutes
+threading.Timer(sleep_duration, fetch_node_services).start()  # Refresh every 5 minutes
 
 def check_limits(container_stats):
     alerts = []
