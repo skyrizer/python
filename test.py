@@ -85,7 +85,7 @@ def fetch_node_services():
 
 # Call fetch_node_services initially and set it to refresh periodically
 fetch_node_services()
-threading.Timer(sleep_duration, fetch_node_services).start()  # Refresh every 5 minutes
+threading.Timer(5, fetch_node_services).start()  # Refresh every 5 minutes
 
 def check_limits(container_stats):
     alerts = []
@@ -300,11 +300,11 @@ if __name__ == "__main__":
 
     # Fetch container limits initially and set to refresh periodically
     fetch_container_limits()
-    threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
+    threading.Timer(sleep_duration, fetch_container_limits).start()  # Refresh every 5 minutes
 
     # Fetch node services initially and set to refresh periodically
     fetch_node_services()
-    threading.Timer(300, fetch_node_services).start()  # Refresh every 5 minutes
+    threading.Timer(sleep_duration, fetch_node_services).start()  # Refresh every 5 minutes
 
     # Start WebSocket server to listen for messages from Flutter and send docker stats
     ip_address = get_ip()
