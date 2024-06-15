@@ -49,7 +49,7 @@ def parse_memory_usage(memory_string):
 def fetch_container_limits():
     global containers_limits
     ip_address = get_ip()
-    url = "http://192.168.0.115:8000/getAgentContainers"  # Replace with your actual API endpoint
+    url = "http://127.0.0.1:8000/getAgentContainers"  # Replace with your actual API endpoint
     try:
         payload = {"ip_address": ip_address}
         headers = {"Content-Type": "application/json"}
@@ -70,7 +70,7 @@ threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
 def fetch_node_services():
     global node_services
     ip_address = get_ip()
-    url = "http://192.168.0.115:8000/getServicesByNode"  # Replace with your actual API endpoint
+    url = "http://127.0.0.1:8000/getServicesByNode"  # Replace with your actual API endpoint
     try:
         payload = {"ip_address": ip_address}
         headers = {"Content-Type": "application/json"}
