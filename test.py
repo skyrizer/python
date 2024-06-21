@@ -290,13 +290,22 @@ def get_service_status():
 
     return services_status
 
+def periodic_task():
+    while True:
+        fetch_container_limits()
+        fetch_node_services()
+        time.sleep(5)
+
+
 if __name__ == "__main__":
     # Start threads for collecting docker stats and sending HTTP requests
     extract_thread = threading.Thread(target=extract_docker_stats)
     send_http_thread = threading.Thread(target=send_http_request)
+    periodic_task_thread = threading.Thread(target=periodic_task)
     
     extract_thread.start()
     send_http_thread.start()
+    periodic_task_thread.start()
 
     # Fetch container limits initially and set to refresh periodically
     fetch_container_limits()
@@ -304,7 +313,7 @@ if __name__ == "__main__":
 
     # Fetch node services initially and set to refresh periodically
     fetch_node_services()
-    threading.Timer(sleep_duration, fetch_node_services).start()  # Refresh every 5 minutes
+    threading.Timer(5, fetch_node_services).start()  # Refresh every 5 minutes
 
     # Start WebSocket server to listen for messages from Flutter and send docker stats
     ip_address = get_ip()
