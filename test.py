@@ -258,21 +258,23 @@ async def handle_websocket(websocket, path):
                         sleep_duration = new_duration
                         print(email)
                         print(f"Updated sleep duration to: {sleep_duration}")
-                    elif "email" in data:
-                        new_email = data["email"]
-                        email = new_email
-                        print(f"Updated email as: {email}")
                     elif "service_name" in data:
                         new_service = data["service_name"]
                         service_name = new_service
                         run_service_command(service_name)
+                    elif "email" in data:
+                        new_email = data["email"]
+                        email = new_email
+                        print(f"Updated email as: {email}")
                     else:
                         # Echo the message to other connected clients
                         for client in connected_clients.copy():
                             if client != websocket:
                                 await client.send(message)
-                except ValueError as e:
+                except json.JSONDecodeError as e:
                     print(f"Invalid message format: {e}")
+                except Exception as e:
+                    print(f"Error processing message: {e}")
     except websockets.exceptions.ConnectionClosedError as e:
         print(f"Connection closed with error: {e}")
     except websockets.exceptions.ConnectionClosedOK:
