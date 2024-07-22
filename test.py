@@ -8,6 +8,9 @@ import asyncio
 import websockets
 import socket
 import psutil
+import os
+import platform
+
 
 # Global variable to store sleep duration
 sleep_duration = 10
@@ -206,11 +209,40 @@ def alert_notification(message):
 
         time.sleep(15)
 
+# Function to get the service commands from the Laravel server
+def get_service_commands(service_name):
+    url = f'http://127.0.0.1:8000/api/service/{service_name}'
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception('Service not found')
+
+# Function to identify the OS and run the related command
+def run_service_command(service_name):
+    service = get_service_commands(service_name)
+    os_type = platform.system()
+
+    if os_type == 'Linux':
+        command = service['start_command_linux']
+    elif os_type == 'Windows':
+        command = service['start_command_windows']
+    else:
+        raise Exception('Unsupported OS')
+
+    try:
+        subprocess.run(command, check=True, shell=True)
+        print(f'Service {service_name} started successfully.')
+    except subprocess.CalledProcessError as e:
+        print(f'Failed to start service {service_name}: {e}')
+
 
 # Function to handle WebSocket connections and messages
 async def handle_websocket(websocket, path):
     global sleep_duration
     global email
+    global service_name
     connected_clients.add(websocket)
     try:
         async for message in websocket:
@@ -230,7 +262,10 @@ async def handle_websocket(websocket, path):
                         new_email = data["email"]
                         email = new_email
                         print(f"Updated email as: {email}")
-
+                    elif "service_name" in data:
+                        new_service = data["service_name"]
+                        service_name = new_service
+                        run_service_command(service_name)
                     else:
                         # Echo the message to other connected clients
                         for client in connected_clients.copy():
