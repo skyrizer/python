@@ -225,17 +225,18 @@ def run_service_command(service_name):
     os_type = platform.system()
 
     if os_type == 'Linux':
-        command = service['start_command_linux']
+         command = f"sudo {service['start_command_linux']}"
     elif os_type == 'Windows':
         command = service['start_command_windows']
     else:
         raise Exception('Unsupported OS')
 
     try:
-        subprocess.run(command, check=True, shell=True)
-        print(f'Service {service_name} started successfully.')
+        # Command to run as administrator
+        subprocess.run(['runas', '/user:Administrator', command], check=True, shell=True)
     except subprocess.CalledProcessError as e:
-        print(f'Failed to start service {service_name}: {e}')
+        print(f'Failed to execute command with admin privileges: {e}')
+
 
 
 # Function to handle WebSocket connections and messages
