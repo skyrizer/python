@@ -572,7 +572,8 @@ def start():
 
         loop.run_forever()
 
-    daemon = Daemonize(app="contain_safe", pid=PID, action=run)
+    daemon = Daemonize(app="contain_safe", pid=PID, action=run,
+                    foreground=False)
     daemon.start()
     print("ContainSafe started as a daemon.")
 
