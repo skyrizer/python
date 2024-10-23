@@ -15,7 +15,7 @@ from daemonize import Daemonize
 import signal
 import sys
 
-PID = "/tmp/contain_safe.pid"
+PID = "/var/run/contain_safe.pid"
 
 
 # Global variable to store sleep duration
