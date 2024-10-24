@@ -12,7 +12,7 @@ import os
 import platform
 from datetime import datetime
 
-
+server_ip = "http://128.199.194.23:8000"
 
 # Global variable to store sleep duration
 sleep_duration = 10
@@ -39,7 +39,7 @@ def get_ip():
 
 def get_node_id():
     # Define the URL of your Laravel endpoint
-    url = "http://127.0.0.1:8000/getNodeId"  # Replace with your actual URL
+    url = f"{server_ip}/getNodeId"  # Replace with your actual URL
 
     # Define the data to send with the request
     data = {
@@ -79,7 +79,7 @@ def parse_docker_containers(output):
     return containers
 
 def store_containers(node_id, containers):
-    url = "http://127.0.0.1:8000/storeContainers"
+    url = f"{server_ip}/storeContainers"
     try:
         # Create payload with the parsed stats and node ID
         payload = {"node_id": node_id, "containers": containers}
@@ -180,7 +180,7 @@ def parse_usage(usage_str):
 def fetch_container_limits():
     global containers_limits
     ip_address = get_ip()
-    url = "http://127.0.0.1:8000/getAgentContainers"  # Replace with your actual API endpoint
+    url = f"{server_ip}/getAgentContainers"  # Replace with your actual API endpoint
     try:
         payload = {"ip_address": ip_address}
         headers = {"Content-Type": "application/json"}
@@ -203,7 +203,7 @@ threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
 def fetch_node_services():
     global node_services
     ip_address = get_ip()
-    url = "http://127.0.0.1:8000/getServicesByNode"  # Replace with your actual API endpoint
+    url = f"{server_ip}/getServicesByNode"  # Replace with your actual API endpoint
     try:
         payload = {"ip_address": ip_address}
         headers = {"Content-Type": "application/json"}
@@ -339,7 +339,7 @@ def extract_docker_stats():
 
 # Function to send HTTP request
 def send_http_request():
-    url = "http://127.0.0.1:8000/agent"
+    url = f"{server_ip}/agent"
     while True:
         try:
             payload = {"performance": docker_stats}
@@ -389,7 +389,7 @@ def alert_notification(message):
 
 # Function to get the service commands from the Laravel server
 def get_service_commands(service_name):
-    url = f'http://127.0.0.1:8000/api/service/{service_name}'
+    url = f'{server_ip}/api/service/{service_name}'
     response = requests.get(url)
 
     if response.status_code == 200:
