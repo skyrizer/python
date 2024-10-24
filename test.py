@@ -11,6 +11,12 @@ import psutil
 import os
 import platform
 from datetime import datetime
+from daemonize import Daemonize
+import signal
+import sys
+
+PID = "/var/run/contain_safe.pid"
+server_ip = "http://128.199.194.23:8000"
 
 server_ip = "http://128.199.194.23:8000"
 
@@ -39,7 +45,9 @@ def get_ip():
 
 def get_node_id():
     # Define the URL of your Laravel endpoint
-    url = f"{server_ip}/getNodeId"  # Replace with your actual URL
+
+    url = f"{server_ip}/getNodeId"  # This appends the path to the server_ip
+
 
     # Define the data to send with the request
     data = {
@@ -96,7 +104,7 @@ def store_containers(node_id, containers):
     except Exception as e:
         print("An unexpected error occurred:", str(e))
 
-async def extract_docker_containers():
+async def extract_docker_containers(ip_address):
 
     node_id = get_node_id()
 
@@ -533,37 +541,74 @@ def periodic_task():
         fetch_node_services()
         time.sleep(5)
 
+def start():
+    def run():
+         # Start threads for collecting Docker stats and sending HTTP requests
+        extract_thread = threading.Thread(target=extract_docker_stats)
+        send_http_thread = threading.Thread(target=send_http_request)
+        periodic_task_thread = threading.Thread(target=periodic_task)
+
+        extract_thread.start()
+        send_http_thread.start()
+        periodic_task_thread.start()
+
+        # Fetch container limits initially and set to refresh periodically
+        fetch_container_limits()
+        threading.Timer(300, fetch_container_limits).start()  # Refresh every 5 minutes
+
+        # Fetch node services initially and set to refresh periodically
+        fetch_node_services()
+        threading.Timer(300, fetch_node_services).start()  # Refresh every 5 minutes
+
+        # Start WebSocket server to listen for messages from Flutter and send Docker stats
+        ip_address = get_ip()
+        port = 8765
+
+        start_server = websockets.serve(handle_websocket, ip_address, port)
+
+        print(f"Starting WebSocket server on {ip_address}:{port}")
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(start_server)
+        loop.create_task(send_docker_stats())  # Ensure this line is uncommented and corrected
+        loop.create_task(send_service_status())  # Ensure this line is uncommented and corrected
+        loop.create_task(extract_docker_containers(ip_address))  # Ensure this line is uncommented and corrected
+
+        loop.run_forever()
+
+    daemon = Daemonize(app="contain_safe", pid=PID, action=run,
+                    foreground=False)
+    daemon.start()
+    print("ContainSafe started as a daemon.")
+
+
+
+def stop():
+    if os.path.exists(PID):
+        with open(PID, 'r') as f:
+            pid = int(f.read())
+        try:
+            os.kill(pid, signal.SIGTERM)  # Send termination signal
+            os.remove(PID)  # Remove the PID file
+            print("ContainSafe stopped.")
+        except ProcessLookupError:
+            print("No such process with PID:", pid)
+    else:
+        print("ContainSafe is not running.")
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: ./ContainSafe start|stop")
+        sys.exit(1)
+
+    command = sys.argv[1].lower()
+    if command == "start":
+        start()
+    elif command == "stop":
+        stop()
+    else:
+        print("Invalid command. Use 'start' or 'stop'.")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    # Start threads for collecting docker stats and sending HTTP requests
-    extract_thread = threading.Thread(target=extract_docker_stats)
-    send_http_thread = threading.Thread(target=send_http_request)
-    periodic_task_thread = threading.Thread(target=periodic_task)
-    
-    extract_thread.start()
-    send_http_thread.start()
-    periodic_task_thread.start()
-
-    # Fetch container limits initially and set to refresh periodically
-    fetch_container_limits()
-    threading.Timer(sleep_duration, fetch_container_limits).start()  # Refresh every 5 minutes
-
-    # Fetch node services initially and set to refresh periodically
-    fetch_node_services()
-    threading.Timer(5, fetch_node_services).start()  # Refresh every 5 minutes
-
-    # Start WebSocket server to listen for messages from Flutter and send docker stats
-    ip_address = get_ip()
-    port = 8765
-
-    start_server = websockets.serve(handle_websocket, ip_address, port)
-
-    print(f"Starting WebSocket server on {ip_address}:{port}")
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(start_server)
-    loop.create_task(send_docker_stats())  # Ensure this line is uncommented and corrected
-    loop.create_task(send_service_status())  # Ensure this line is uncommented and corrected
-    loop.create_task(extract_docker_containers())  # Ensure this line is uncommented and corrected
-
-    loop.run_forever()
+    main()
