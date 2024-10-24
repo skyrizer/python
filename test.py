@@ -18,7 +18,7 @@ import sys
 PID = "/var/run/contain_safe.pid"
 server_ip = "http://128.199.194.23:8000"
 
-
+server_ip = "http://128.199.194.23:8000"
 
 # Global variable to store sleep duration
 sleep_duration = 10
@@ -45,7 +45,9 @@ def get_ip():
 
 def get_node_id():
     # Define the URL of your Laravel endpoint
+
     url = f"{server_ip}/getNodeId"  # This appends the path to the server_ip
+
 
     # Define the data to send with the request
     data = {
