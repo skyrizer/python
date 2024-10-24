@@ -18,8 +18,6 @@ import sys
 PID = "/var/run/contain_safe.pid"
 server_ip = "http://128.199.194.23:8000"
 
-server_ip = "http://128.199.194.23:8000"
-
 # Global variable to store sleep duration
 sleep_duration = 10
 email = ""
